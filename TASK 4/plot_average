@@ -1,0 +1,18 @@
+# Send output to a PNG file
+set terminal png  enhanced 
+# Set the name of the output file
+set output "average.png"
+
+# Set ranges and labels for axes
+set xrange [0:30.0]
+set yrange [0:0.1]
+set xlabel "x"
+set ylabel "y"
+
+# Set linestyle 1 to blue (#0060ad)
+set style line 1 \
+    linecolor rgb '#0060ad' \
+    linetype 1 linewidth 1 \
+    pointtype 7 pointsize 1.5
+
+plot 'average.dat' with linespoints linestyle 1
