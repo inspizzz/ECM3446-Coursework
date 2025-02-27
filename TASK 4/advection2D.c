@@ -248,7 +248,7 @@ int main()
 		float sum = 0;
 		for (int j = 0; j < NY; j++)
 		{
-			sum += u[j][i];
+			sum += u[i][j];
 		}
 		fprintf(averagefile, "%g %g\n", x[i], sum / NY);
 	}

@@ -5,7 +5,7 @@ set output "average.png"
 
 # Set ranges and labels for axes
 set xrange [0:30.0]
-set yrange [0:0.1]
+set yrange [0:0.2]
 set xlabel "x"
 set ylabel "y"
 
