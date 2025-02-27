@@ -90,16 +90,16 @@ int main()
 /*** Place x points in the middle of the cell ***/
 // can be parallelised as calculation is not sequential, rather populating x[i] with calculations
 /* LOOP 1 */
-#pragma omp parallel for shared(x)
+#pragma omp parallel for default(none) shared(x, dx, NX)
     for (int i = 0; i < NX + 2; i++)
     {
         x[i] = ((float)i - 0.5) * dx;
     }
 
-/*** Place y points in the middle of the cell ***/
-// can be parallelised too! same as before
-/* LOOP 2 */
-#pragma omp parallel for shared(y)
+    /*** Place y points in the middle of the cell ***/
+    // can be parallelised too! same as before
+    /* LOOP 2 */
+#pragma omp parallel for default(none) shared(y, dy, NY)
     for (int j = 0; j < NY + 2; j++)
     {
         y[j] = ((float)j - 0.5) * dy;
@@ -108,8 +108,9 @@ int main()
     /*** Set up Gaussian initial conditions ***/
     // can be parallelised as each population of u only utilises variables x2 or y2 which are calculated inside of the for loop and does not reuse u inside
     /* LOOP 3 */
-    #pragma omp parallel for collapse(2) shared(u)
-    for (int i = 0; i < NX + 2; i++) {
+#pragma omp parallel for collapse(2) default(none) shared(u, x, y, x0, y0, sigmax2, sigmay2, NY, NX) private(x2, y2)
+    for (int i = 0; i < NX + 2; i++)
+    {
         for (int j = 0; j < NY + 2; j++)
         {
             x2 = (x[i] - x0) * (x[i] - x0);
@@ -119,7 +120,7 @@ int main()
     }
 
     /*** Write array of initial u values out to file ***/
-    /* cannot be parallelised as order here matters, contents of x, y, u must be inputted to the initialfile in order */
+    /* cannot be parallelised file order here must be sequential */
     FILE *initialfile;
     initialfile = fopen("initial.dat", "w");
     /* LOOP 4 */
@@ -133,58 +134,60 @@ int main()
     fclose(initialfile);
 
     /*** Update solution by looping over time steps ***/
-
+    /* cannot be parallelised as contents inside must be executed in order before LOOP 8 is executed*/
     /* LOOP 5 */
-    for (int m = 0; m < nsteps; m++)
     {
-
-        /*** Apply boundary conditions at u[0][:] and u[NX+1][:] ***/
-        /* can parellalised as no dependency of variable u between iterations*/
-        /* LOOP 6 */
-        #pragma omp parallel for
-        for (int j = 0; j < NY + 2; j++)
+        for (int m = 0; m < nsteps; m++)
         {
-            u[0][j] = bval_left;
-            u[NX + 1][j] = bval_right;
-        }
 
-        /*** Apply boundary conditions at u[:][0] and u[:][NY+1] ***/
-        /* can be parellalised as no dependency of u between iterations */
-        /* LOOP 7 */
-        #pragma omp parallel for shared(u)
-        for (int i = 0; i < NX + 2; i++)
-        {
-            u[i][0] = bval_lower;
-            u[i][NY + 1] = bval_upper;
-        }
-
-        /*** Calculate rate of change of u using leftward difference ***/
-        /* Loop over points in the domain but not boundary values */
-        /* cannot parallelise due to race condition of u[i-1][j] and u[i][j-1] dependency, multiple threads may access these at the same time leading to error */
-        /* LOOP 8 */
-        for (int i = 1; i < NX + 1; i++)
-        {
-            for (int j = 1; j < NY + 1; j++)
+            /*** Apply boundary conditions at u[0][:] and u[NX+1][:] ***/
+            /* can parellalised as no dependency of variable u between iterations*/
+            /* LOOP 6 */
+#pragma omp parallel for default(none) shared(u, bval_left, bval_right, NX, NY)
+            for (int j = 0; j < NY + 2; j++)
             {
-                dudt[i][j] = -velx * (u[i][j] - u[i - 1][j]) / dx - vely * (u[i][j] - u[i][j - 1]) / dy;
+                u[0][j] = bval_left;
+                u[NX + 1][j] = bval_right;
             }
-        }
 
-        /*** Update u from t to t+dt ***/
-        /* Loop over points in the domain but not boundary values */
-        /* Can be parallelised as only uses the same dependency as it is updating*/
-        /* LOOP 9 */
-        #pragma omp parallel for collapse(2) shared(u, dudt)
-        for (int i = 1; i < NX + 1; i++)
-        {
-            for (int j = 1; j < NY + 1; j++)
+            /*** Apply boundary conditions at u[:][0] and u[:][NY+1] ***/
+            /* can be parellalised as no dependency of u between iterations */
+            /* LOOP 7 */
+#pragma omp parallel for default(none) shared(u, bval_lower, bval_upper, NX, NY)
+            for (int i = 0; i < NX + 2; i++)
             {
-                u[i][j] = u[i][j] + dudt[i][j] * dt;
+                u[i][0] = bval_lower;
+                u[i][NY + 1] = bval_upper;
             }
-        }
 
-    } // time loop
+            /*** Calculate rate of change of u using leftward difference ***/
+            /* Loop over points in the domain but not boundary values */
+            /* can be parallelised as reading only from */
+            /* LOOP 8 */
+#pragma omp parallel for collapse(2) default(none) shared(u, dx, dy, NX, NY, velx, vely, dudt)
+            for (int i = 1; i < NX + 1; i++)
+            {
+                for (int j = 1; j < NY + 1; j++)
+                {
+                    dudt[i][j] = -velx * (u[i][j] - u[i - 1][j]) / dx - vely * (u[i][j] - u[i][j - 1]) / dy;
+                }
+            }
 
+/*** Update u from t to t+dt ***/
+/* Loop over points in the domain but not boundary values */
+/* Can be parallelised as only uses the same dependency as it is updating*/
+/* LOOP 9 */
+#pragma omp parallel for collapse(2) default(none) shared(u, dudt, dt, NX, NY)
+            for (int i = 1; i < NX + 1; i++)
+            {
+                for (int j = 1; j < NY + 1; j++)
+                {
+                    u[i][j] = u[i][j] + dudt[i][j] * dt;
+                }
+            }
+
+        } // time loop
+    }
     /*** Write array of final u values out to file ***/
     /* cannot be parellised as operations inside the double for loop must be sequential */
     FILE *finalfile;

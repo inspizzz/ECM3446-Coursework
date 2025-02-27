@@ -80,7 +80,6 @@ int main()
 	float y[NX + 2];			// y-axis values
 	float u[NX + 2][NY + 2];	// Array of u values
 	float dudt[NX + 2][NY + 2]; // Rate of change of u
-	// float vprofile[NX + 2][NY + 2]; 			// log velocity profile
 	
 
 	float x2; // x squared (used to calculate iniital conditions)
@@ -233,11 +232,11 @@ int main()
 	fclose(finalfile);
 
 	/* Free the allocated memory */
-    for (int i = 0; i < NX + 2; i++)
-    {
-        free(velx[i]);
-    }
-    free(velx);
+    // for (int i = 0; i < NX + 2; i++)
+    // {
+    //     free(velx[i]);
+    // }
+    // free(velx);
 
 	return 0;
 }
